@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Macchina di Von Neumann - Somma delle Cifre</title>
+<style>
+  body {
+    font-family: 'Courier New', monospace;
+    background: linear-gradient(to right, #2c5364, #203a43, #0f2027);
+    color: #fff;
+    padding: 30px;
+    max-width: 700px;
+    margin: auto;
+  }
+  h1 {
+    color: #4EF037;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  label, input {
+    font-size: 1.2rem;
+    margin-right: 10px;
+  }
+  input[type="number"] {
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: none;
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    width: 200px;
+  }
+  button {
+    background: #4EF037;
+    border: none;
+    color: #000;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin: 10px 5px 30px 0;
+    transition: background 0.3s;
+  }
+  button:hover:not(:disabled) {
+    background: #37c620;
+  }
+  button:disabled {
+    background: #777;
+    cursor: default;
+  }
+  .status, .memory-view {
+    background: #111;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    white-space: pre-wrap;
+    min-height: 170px;
+  }
+  .controls {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Macchina di Von Neumann: Somma delle Cifre</h1>
+
+<div style="text-align:center;">
+  <label for="inputNumber">Inserisci un numero intero positivo:</label>
+  <input id="inputNumber" type="number" min="0" step="1" value="12345" />
+  <button id="loadBtn">Carica Numero</button>
+</div>
+
+<div class="status" id="status">
+  <strong>Stato CPU:</strong><br>
+  PC: 0<br>
+  ACC: 0<br>
+  Registro IND (indice cifra): 0<br>
+  Lunghezza numero: 0<br>
+  Istruzione corrente: <em>---</em><br><br>
+  <strong>Output:</strong><br>
+  <pre id="output"></pre>
+</div>
+
+<div class="controls">
+  <button id="stepBtn" disabled>Esegui passo</button>
+  <button id="runBtn" disabled>Esegui tutto</button>
+  <button id="resetBtn" disabled>Reset</button>
+</div>
+
+<script>
+  // Memoria:
+  // 15: ACC (somma)
+  // 16: indice cifra corrente
+  // 17: lunghezza numero
+  // 20..: cifre numero
+
+  let memory = new Array(256).fill(0);
+  let PC = 0;
+  let running = false;
+  let outputLog = [];
+
+  const statusEl = document.getElementById('status');
+  const outputEl = document.getElementById('output');
+  const stepBtn = document.getElementById('stepBtn');
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  function updateStatus(instr = '---') {
+    statusEl.innerHTML = `<strong>Stato CPU:</strong><br>
+      PC: ${PC}<br>
+      ACC: ${memory[15]}<br>
+      Registro IND (indice cifra): ${memory[16]}<br>
+      Lunghezza numero: ${memory[17]}<br>
+      Istruzione corrente: <em>${instr}</em><br><br>
+      <strong>Output:</strong><br>`;
+    outputEl.textContent = outputLog.join('\n');
+  }
+
+  function loadNumber(numStr) {
+    // Reset memoria cifre
+    for (let i = 20; i < memory.length; i++) memory[i] = 0;
+
+    // Carica cifre
+    for (let i = 0; i < numStr.length; i++) {
+      memory[20 + i] = parseInt(numStr[i], 10);
+    }
+
+    memory[17] = numStr.length; // lunghezza
+    memory[15] = 0;             // somma (ACC)
+    memory[16] = 0;             // indice cifra
+    PC = 0;
+    running = true;
+    outputLog = [`Numero caricato: ${numStr}`, ''];
+    updateStatus();
+    stepBtn.disabled = false;
+    runBtn.disabled = false;
+    resetBtn.disabled = false;
+  }
+
+  function step() {
+    if (!running) return;
+
+    switch (PC) {
+      case 0:
+        if (memory[16] >= memory[17]) {
+          PC = 5;
+          outputLog.push('Controllo indice >= lunghezza: true, salto a fine');
+          break;
+        }
+        outputLog.push('Controllo indice >= lunghezza: false, procedo');
+        PC++;
+        break;
+
+      case 1:
+        outputLog.push(`LOAD ACC = ${memory[15]}`);
+        PC++;
+        break;
+
+      case 2:
+        const cifra = memory[20 + memory[16]];
+        memory[15] += cifra;
+        outputLog.push(`ADD cifra[${memory[16]}] = ${cifra}, somma ora = ${memory[15]}`);
+        PC++;
+        break;
+
+      case 3:
+        memory[16]++;
+        outputLog.push(`Incremento indice a ${memory[16]}`);
+        PC = 0; // ciclo
+        break;
+
+      case 5:
+        outputLog.push(`Risultato finale: somma delle cifre = ${memory[15]}`);
+        outputLog.push('HALT - Programma terminato');
+        running = false;
+        stepBtn.disabled = true;
+        runBtn.disabled = true;
+        break;
+
+      default:
+        outputLog.push('Errore: istruzione sconosciuta');
+        running = false;
+        stepBtn.disabled = true;
+        runBtn.disabled = true;
+    }
+    updateStatus();
+  }
+
+  function runAll() {
+    while (running) {
+      step();
+    }
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', () => {
+    const val = document.getElementById('inputNumber').value.trim();
+    if (!val || isNaN(val) || val.includes('-') || val.includes('.') || val.length === 0) {
+      alert('Inserisci un numero intero positivo valido.');
+      return;
+    }
+    loadNumber(val);
+  });
+
+  stepBtn.addEventListener('click', step);
+  runBtn.addEventListener('click', runAll);
+  resetBtn.addEventListener('click', () => {
+    memory.fill(0);
+    PC = 0;
+    running = false;
+    outputLog = [];
+    updateStatus();
+    stepBtn.disabled = true;
+    runBtn.disabled = true;
+    resetBtn.disabled = true;
+  });
+
+  // Inizializzo pagina senza abilitare pulsanti esecuzione
+  updateStatus();
+</script>
+
+</body>
+</html>
